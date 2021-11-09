@@ -380,6 +380,23 @@ export namespace Moralis {
    */
   class Web3 extends NativeWeb3 {
     static activeWeb3Provider?: Web3Provider;
+    static web3: unknown;
+    // TODO: add miniWeb3 definition
+    static miniWeb3: any;
+
+    static on: EventEmitter['on'];
+    static off: EventEmitter['off'];
+    static once: EventEmitter['once'];
+    static removeListener: EventEmitter['removeListener'];
+    static addListener: EventEmitter['addListener'];
+    static removeAllListeners: EventEmitter['removeAllListeners'];
+
+    static chainId: string | null;
+    static account: string | null;
+    static network: string | null;
+    static connectorType: string | null;
+    // TODO: add connector definition
+    static connector: any | null;
 
     // Core functions
     static enableWeb3: (options?: EnableOptions) => Promise<NativeWeb3>;
@@ -434,7 +451,6 @@ export namespace Moralis {
     static getTransactionsCount: (options: CommonConvenienceOptions) => Promise<CountResult>;
 
     // Eth listeners
-    static on: EthOn;
     static getSigningData: () => string;
     static onConnect: (callback: EthOnConnect) => void;
     static onDisconnect: (callback: EthOnDisconnect) => void;

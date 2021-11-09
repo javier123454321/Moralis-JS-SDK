@@ -13,6 +13,7 @@ const watch = require('gulp-watch');
 
 const BUILD = process.env.PARSE_BUILD || 'browser';
 const VERSION = require('./package.json').version;
+const SRC = ['src/**/*.js', '!src/__tests__/**/*.js', '!src/interfaces/**/*.js'];
 
 const transformRuntime = [
   '@babel/plugin-transform-runtime',
@@ -124,7 +125,7 @@ const FULL_HEADER =
 gulp.task('compile', function () {
   return (
     gulp
-      .src('src/*.js')
+      .src(SRC)
       .pipe(
         babel({
           presets: PRESETS[BUILD],
@@ -170,7 +171,6 @@ gulp.task('browserify', function (cb) {
   })
     .exclude('xmlhttprequest')
     .ignore('_process')
-    .ignore('web3')
     .ignore('@walletconnect/web3-provider')
     .bundle();
   stream.on('end', () => {
@@ -191,7 +191,6 @@ gulp.task('browserify-weapp', function (cb) {
   })
     .exclude('xmlhttprequest')
     .ignore('_process')
-    .ignore('web3')
     .ignore('@walletconnect/web3-provider')
     .bundle();
   stream.on('end', () => {
@@ -252,7 +251,7 @@ gulp.task('minify-web3api', function () {
 
 gulp.task('watch', function () {
   return (
-    watch('src/*.js', { ignoreInitial: false, verbose: true })
+    watch(SRC, { ignoreInitial: false, verbose: true })
       .pipe(
         babel({
           presets: PRESETS[BUILD],

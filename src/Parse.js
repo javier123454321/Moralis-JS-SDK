@@ -33,8 +33,18 @@ class Moralis extends MoralisWeb3 {
    * @static
    */
   static async start(options) {
-    const { appId, serverUrl, plugins, javascriptKey, masterKey, moralisSecret } = options;
+    const {
+      appId,
+      serverUrl,
+      plugins,
+      javascriptKey,
+      masterKey,
+      moralisSecret,
+      web3Library,
+    } = options;
     let apiKey;
+
+    this.web3Library = web3Library;
 
     if (process.env.PARSE_BUILD !== 'node') {
       // Non-node environments (browser, react-native)
