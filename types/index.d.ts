@@ -452,10 +452,10 @@ export namespace Moralis {
 
     // Eth listeners
     static getSigningData: () => string;
-    static onConnect: (callback: EthOnConnect) => void;
-    static onDisconnect: (callback: EthOnDisconnect) => void;
-    static onChainChanged: (callback: EthOnChainChanged) => void;
-    static onAccountsChanged: (callback: EthOnAccountsChanged) => void;
+    static onConnect: (callback: EthOnConnect) => EventEmitter;
+    static onDisconnect: (callback: EthOnDisconnect) => EventEmitter;
+    static onChainChanged: (callback: EthOnChainChanged) => EventEmitter;
+    static onAccountsChanged: (callback: EthOnAccountsChanged) => EventEmitter;
   }
 
   /**

@@ -18,7 +18,6 @@ import ParseError from './ParseError';
 
 import EventEmitter from 'events';
 import { ConnectorEvent } from './Web3Connector/events';
-import { emit } from 'process';
 
 /**
  * A small web3 implementation that implements basic EIP-1193 `request` calls.
@@ -105,13 +104,6 @@ class MiniWeb3 extends EventEmitter {
     });
   }
 }
-
-export const EthereumEvents = {
-  CONNECT: 'connect',
-  DISCONNECT: 'disconnect',
-  ACCOUNTS_CHANGED: 'accountsChanged',
-  CHAIN_CHANGED: 'chainChanged',
-};
 
 const WARNING = 'Non ethereum enabled browser';
 const ERROR_WEB3_MISSING =
@@ -200,7 +192,6 @@ class MoralisWeb3 {
     // TODO: cleanup
     this.miniWeb3.on(ConnectorEvent.ACCOUNT_CHANGED, this.handleAccountsChanged);
     this.miniWeb3.on(ConnectorEvent.CHAIN_CHANGED, this.handleChainChanged);
-    // this.miniWeb3.on(ConnectorEvent.CHAIN_CHANGED, () => console.log('The fuck'));
     const { provider, chainId, account } = await this.miniWeb3.activate(options);
 
     let web3 = null;
@@ -210,7 +201,7 @@ class MoralisWeb3 {
     }
 
     this.web3 = web3;
-    MoralisEmitter.emit(ConnectorEvent.WEB3_ENABLED, {
+    MoralisEmitter.emit(ConnectorEvent.CONNECT, {
       chainId,
       account,
       connector,
@@ -263,10 +254,14 @@ class MoralisWeb3 {
   static cleanup() {
     if (this.miniWeb3) {
       // WIP
-      this.miniWeb3.removeListener(ConnectorEvent.ACCOUNT_CHANGED, this.handleChainChanged);
+      this.miniWeb3.removeListener(ConnectorEvent.ACCOUNT_CHANGED, this.handleAccountsChanged);
       this.miniWeb3.removeListener(ConnectorEvent.CHAIN_CHANGED, this.handleChainChanged);
 
       this.miniWeb3.deactivate();
+      MoralisEmitter.emit(ConnectorEvent.DISCONNECT, {
+        connector: this.miniWeb3.connector,
+        provider: this.miniWeb3.provider,
+      });
     }
 
     // WIP
@@ -870,9 +865,10 @@ class MoralisWeb3 {
   };
 }
 
-MoralisWeb3.onConnect = MoralisWeb3.on.bind(MoralisWeb3, EthereumEvents.CONNECT);
-MoralisWeb3.onDisconnect = MoralisWeb3.on.bind(MoralisWeb3, EthereumEvents.DISCONNECT);
-MoralisWeb3.onChainChanged = MoralisWeb3.on.bind(MoralisWeb3, EthereumEvents.CHAIN_CHANGED);
-MoralisWeb3.onAccountsChanged = MoralisWeb3.on.bind(MoralisWeb3, EthereumEvents.ACCOUNTS_CHANGED);
+// TODO: Re-check these
+MoralisWeb3.onConnect = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.CONNECT);
+MoralisWeb3.onDisconnect = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.DISCONNECT);
+MoralisWeb3.onChainChanged = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.CHAIN_CHANGED);
+MoralisWeb3.onAccountsChanged = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.ACCOUNT_CHANGED);
 
 export default MoralisWeb3;

@@ -1,13 +1,24 @@
 /* global window */
 import CoreManager from '../CoreManager';
+import verifyChainId from '../utils/verifyChainId';
 import AbstractWeb3Connector from './AbstractWeb3Connector';
+import { ConnectorEvent } from './events';
 import { getMoralisRpcs } from './MoralisRpcs';
 
-// TODO: use WalletConnect v2?
+export const WalletConnectEvent = Object.freeze({
+  ACCOUNTS_CHANGED: 'accountsChanged',
+  CHAIN_CHANGED: 'chainChanged',
+  DISCONNECT: 'disconnect',
+});
+
+/**
+ * Connector to connect an WalletConenct provider to Moralis
+ * Note: this assumes using WalletConnect v1
+ * TODO: support WalletConnect v2
+ */
 class WalletConnectWeb3Connector extends AbstractWeb3Connector {
-  get type() {
-    return 'WalletConnect';
-  }
+  type = 'WalletConnect';
+  network = 'evm';
 
   async activate({ chainId: providedChainId, mobileLinks } = {}) {
     if (!this.provider) {
@@ -44,11 +55,35 @@ class WalletConnectWeb3Connector extends AbstractWeb3Connector {
       }
     }
 
-    const accounts = await this.provider.enable();
-    const account = accounts[0];
-    const { chainId } = this.provider;
+    if (!this.provider) {
+      throw new Error('Could not connect with WalletConnect, error in connecting to provider');
+    }
 
-    return { provider: this.provider, account, chainId };
+    this.provider.on(WalletConnectEvent.CHAIN_CHANGED, this.handleChainChanged);
+    this.provider.on(WalletConnectEvent.ACCOUNTS_CHANGED, this.handleAccountsChanged);
+    // this.provider.on(WalletConnectEvent.DISCONNECT, this.handleDisconnect);
+
+    const accounts = await this.provider.enable();
+    const account = accounts[0].toLowerCase();
+    const { chainId } = this.provider;
+    const verifiedChainId = verifyChainId(chainId);
+
+    this.account = account;
+    this.chainId = verifiedChainId;
+
+    return { provider: this.provider, account, chainId: verifiedChainId };
+  }
+
+  handleAccountsChanged(accounts) {
+    const account = accounts ? accounts[0].toLowerCase() : null;
+    this.account = account;
+    this.emit(ConnectorEvent.ACCOUNT_CHANGED, account);
+  }
+
+  handleChainChanged(chainId) {
+    const newChainId = verifyChainId(chainId);
+    this.chainId = newChainId;
+    this.emit(ConnectorEvent.CHAIN_CHANGED, newChainId);
   }
 
   static cleanupStaleData() {
@@ -63,11 +98,9 @@ class WalletConnectWeb3Connector extends AbstractWeb3Connector {
 
   async deactivate() {
     if (this.provider) {
-      try {
-        await this.provider.close();
-      } catch {
-        // Do nothing, might throw error if connection was not opened
-      }
+      this.provider.close();
+      this.provider.removeListener(WalletConnectEvent.CHAIN_CHANGED, this.handleChainChanged);
+      this.provider.removeListener(WalletConnectEvent.ACCOUNTS_CHANGED, this.handleAccountsChanged);
     }
 
     WalletConnectWeb3Connector.cleanupStaleData();
