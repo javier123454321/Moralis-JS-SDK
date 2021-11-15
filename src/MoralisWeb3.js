@@ -1,4 +1,3 @@
-/* global window */
 import ParseObject from './ParseObject';
 import ParseQuery from './ParseQuery';
 import ParseUser from './ParseUser';
@@ -11,13 +10,13 @@ import createSigningData from './createSigningData';
 import web3Utils from 'web3-utils';
 import Contract from 'web3-eth-contract';
 
-import WalletConnectWeb3Connector from './Web3Connector/WalletConnectWeb3Connector';
+// import WalletConnectWeb3Connector from './Web3Connector/WalletConnectWeb3Connector';
 import InjectedWeb3Connector from './Web3Connector/InjectedWeb3Connector';
 import NetworkWeb3Connector from './Web3Connector/NetworkWeb3Connector';
 import ParseError from './ParseError';
 
 import EventEmitter from 'events';
-import { ConnectorEvent } from './Web3Connector/events';
+import { ConnectorEvents, Web3Events } from './Web3Connector/events';
 
 /**
  * A small web3 implementation that implements basic EIP-1193 `request` calls.
@@ -33,20 +32,24 @@ class MiniWeb3 extends EventEmitter {
     super();
     this.connector = connector;
 
-    this.handleAccountsChanged = this.handleAccountsChanged.bind(this);
+    this.handleAccountChanged = this.handleAccountChanged.bind(this);
     this.handleChainChanged = this.handleChainChanged.bind(this);
+    this.handleConnect = this.handleConnect.bind(this);
+    this.handleDisconnect = this.handleDisconnect.bind(this);
   }
 
-  async activate() {
-    const { provider, chainId, account } = await this.connector.activate();
+  async activate(options) {
+    const { provider, chainId, account } = await this.connector.activate(options);
 
     this.provider = provider;
     this.chainId = chainId;
     this.account = account;
 
     if (this.connector.on) {
-      this.connector.on(ConnectorEvent.ACCOUNT_CHANGED, this.handleAccountsChanged);
-      this.connector.on(ConnectorEvent.CHAIN_CHANGED, this.handleChainChanged);
+      this.connector.on(ConnectorEvents.ACCOUNT_CHANGED, this.handleAccountChanged);
+      this.connector.on(ConnectorEvents.CHAIN_CHANGED, this.handleChainChanged);
+      this.connector.on(ConnectorEvents.CONNECT, this.handleConnect);
+      this.connector.on(ConnectorEvents.DISCONNECT, this.handleDisconnect);
     }
 
     return { provider, chainId, account };
@@ -54,23 +57,38 @@ class MiniWeb3 extends EventEmitter {
 
   handleChainChanged(chainId) {
     this.chainId = chainId;
-    this.emit(ConnectorEvent.CHAIN_CHANGED, chainId);
+    this.emit(Web3Events.CHAIN_CHANGED, chainId);
   }
 
-  handleAccountsChanged(account) {
+  handleAccountChanged(account) {
     this.account = account;
-    this.emit(ConnectorEvent.ACCOUNT_CHANGED, account);
+    this.emit(Web3Events.ACCOUNT_CHANGED, account);
   }
 
-  deactivate() {
+  // Handle Connect events fired from connectors
+  handleConnect(connectInfo) {
+    this.emit(Web3Events.CONNECT, connectInfo);
+  }
+
+  // Handle Disconnect events fired from connectors
+  handleDisconnect(error) {
+    this.emit(Web3Events.DISCONNECT, error);
+  }
+
+  async deactivate() {
+    this.account = null;
+    this.chianId = null;
+
     if (this.connector) {
       if (this.connector.removeListener) {
-        this.connector.removeListener(ConnectorEvent.CHAIN_CHANGED, this.handleChainChanged);
-        this.connector.removeListener(ConnectorEvent.ACCOUNT_CHANGED, this.handleAccountsChanged);
+        this.connector.removeListener(Web3Events.CHAIN_CHANGED, this.handleChainChanged);
+        this.connector.removeListener(Web3Events.ACCOUNT_CHANGED, this.handleAccountChanged);
+        this.connector.removeListener(Web3Events.CONNECT, this.handleConnect);
+        this.connector.removeListener(Web3Events.DISCONNECT, this.handleDisconnect);
       }
 
       if (this.connector.deactivate) {
-        this.connector.deactivate();
+        await this.connector.deactivate();
       }
     }
   }
@@ -122,56 +140,47 @@ class MoralisWeb3 {
   static customEnableWeb3;
   static Plugins = {};
 
-  static on(...args) {
-    return MoralisEmitter.on(...args);
+  static addListener(eventName, listener) {
+    MoralisEmitter.on(eventName, listener);
+    return () => MoralisEmitter.removeListener(eventName, listener);
   }
-  static once(...args) {
-    return MoralisEmitter.once(...args);
+  static on(eventName, listener) {
+    MoralisEmitter.on(eventName, listener);
+    return () => MoralisEmitter.removeListener(eventName, listener);
   }
-  static off(...args) {
-    return MoralisEmitter.off(...args);
+  static once(eventName, listener) {
+    MoralisEmitter.once(eventName, listener);
+    return () => MoralisEmitter.removeListener(eventName, listener);
   }
-  static addListener(...args) {
-    return MoralisEmitter.addListener(...args);
+  static removeListener(eventName, listener) {
+    return MoralisEmitter.removeListener(eventName, listener);
   }
-  static removeListener(...args) {
-    return MoralisEmitter.removeListener(...args);
+  static off(eventName, listener) {
+    return MoralisEmitter.off(eventName, listener);
   }
-  static removeAllListeners(...args) {
-    return MoralisEmitter.removeAllListeners(...args);
+  static removeAllListeners(eventName, listener) {
+    return MoralisEmitter.removeAllListeners(eventName, listener);
   }
-
-  // TODO: move to injected?? or other solution
-  // TODO: allow to subscribe to ethereum events (provider.on ?)
-  // static on(eventName, cb) {
-  //   const { ethereum } = window;
-  //   if (!ethereum || !ethereum.on) {
-  //     // eslint-disable-next-line no-console
-  //     console.warn(WARNING);
-  //     return () => {
-  //       // eslint-disable-next-line no-console
-  //       console.warn(WARNING);
-  //     };
-  //   }
-
-  //   ethereum.on(eventName, cb);
-
-  //   return () => {
-  //     // eslint-disable-next-line no-console
-  //     console.warn('UNSUB NOT SUPPORTED');
-  //   };
-  // }
 
   static isWeb3Enabled() {
     return this.ensureWeb3IsInstalled();
   }
 
-  static handleAccountsChanged(account) {
-    MoralisEmitter.emit(ConnectorEvent.ACCOUNT_CHANGED, account);
+  static handleWeb3AccountChanged(account) {
+    MoralisEmitter.emit(Web3Events.ACCOUNT_CHANGED, account);
   }
 
-  static handleChainChanged(chainId) {
-    MoralisEmitter.emit(ConnectorEvent.CHAIN_CHANGED, chainId);
+  static handleWeb3ChainChanged(chainId) {
+    MoralisEmitter.emit(Web3Events.CHAIN_CHANGED, chainId);
+  }
+
+  static handleWeb3Connect(connectInfo) {
+    MoralisEmitter.emit(Web3Events.CONNECT, connectInfo);
+  }
+
+  static handleWeb3Disconnect(error) {
+    this.cleanup();
+    MoralisEmitter.emit(Web3Events.DISCONNECT, error);
   }
 
   /**
@@ -181,18 +190,39 @@ class MoralisWeb3 {
   static async enableWeb3(options) {
     if (this.speedyNodeApiKey) {
       options.speedyNodeApiKey = this.speedyNodeApiKey;
-      // TODO: initialize with correct RPCs (from speedynode)
       options.provider = 'network';
     }
 
+    if (this.miniWeb3) {
+      // TODO: check if we want to do full cleanup or only deactivation of miniWeb3 (connector)
+      // await this.miniWeb3.deactivate();
+      await this.cleanup();
+    }
+
     const Connector = options.connector ?? MoralisWeb3.getWeb3Connector(options.provider);
-    const connector = new Connector();
+    const connector = new Connector(options);
 
     this.miniWeb3 = new MiniWeb3(connector);
-    // TODO: cleanup
-    this.miniWeb3.on(ConnectorEvent.ACCOUNT_CHANGED, this.handleAccountsChanged);
-    this.miniWeb3.on(ConnectorEvent.CHAIN_CHANGED, this.handleChainChanged);
-    const { provider, chainId, account } = await this.miniWeb3.activate(options);
+
+    this.miniWeb3.on(Web3Events.ACCOUNT_CHANGED, args => this.handleWeb3AccountChanged(args));
+    this.miniWeb3.on(Web3Events.CHAIN_CHANGED, args => this.handleWeb3ChainChanged(args));
+    this.miniWeb3.on(Web3Events.CONNECT, args => this.handleWeb3Connect(args));
+    this.miniWeb3.on(Web3Events.DISCONNECT, args => this.handleWeb3Disconnect(args));
+
+    let provider;
+    let chainId;
+    let account;
+
+    try {
+      ({ provider, chainId, account } = await this.miniWeb3.activate(options));
+
+      if (!provider) {
+        throw new Error('Failed to activate, no provider returned');
+      }
+    } catch (error) {
+      await this.cleanup();
+      throw error;
+    }
 
     let web3 = null;
 
@@ -201,7 +231,7 @@ class MoralisWeb3 {
     }
 
     this.web3 = web3;
-    MoralisEmitter.emit(ConnectorEvent.CONNECT, {
+    MoralisEmitter.emit(Web3Events.WEB3_ENABLED, {
       chainId,
       account,
       connector,
@@ -241,43 +271,52 @@ class MoralisWeb3 {
   }
   static getWeb3Connector(provider) {
     switch (provider) {
-      case 'walletconnect':
-      case 'walletConnect':
-      case 'wc':
-        return WalletConnectWeb3Connector;
+      // case 'walletconnect':
+      // case 'walletConnect':
+      // case 'wc':
+      //   return WalletConnectWeb3Connector;
       case 'network':
         return NetworkWeb3Connector;
       default:
         return InjectedWeb3Connector;
     }
   }
-  static cleanup() {
-    if (this.miniWeb3) {
-      // WIP
-      this.miniWeb3.removeListener(ConnectorEvent.ACCOUNT_CHANGED, this.handleAccountsChanged);
-      this.miniWeb3.removeListener(ConnectorEvent.CHAIN_CHANGED, this.handleChainChanged);
 
-      this.miniWeb3.deactivate();
-      MoralisEmitter.emit(ConnectorEvent.DISCONNECT, {
+  static async deactivateWeb3() {
+    return this.cleanup();
+  }
+
+  static async cleanup() {
+    if (this.miniWeb3) {
+      this.miniWeb3.removeListener(Web3Events.ACCOUNT_CHANGED, this.handleWeb3AccountChanged);
+      this.miniWeb3.removeListener(Web3Events.CHAIN_CHANGED, this.handleWeb3ChainChanged);
+      this.miniWeb3.removeListener(Web3Events.CONNECT, this.handleWeb3Connect);
+      this.miniWeb3.removeListener(Web3Events.DISCONNECT, this.handleWeb3Disconnect);
+
+      await this.miniWeb3.deactivate();
+    }
+
+    if (this.web3) {
+      MoralisEmitter.emit(Web3Events.WEB3_DEACTIVATED, {
         connector: this.miniWeb3.connector,
         provider: this.miniWeb3.provider,
       });
     }
 
-    // WIP
     this.miniWeb3 = null;
     this.web3 = null;
 
     // Prevent a bug when there is stale data active
-    WalletConnectWeb3Connector.cleanupStaleData();
+    // WalletConnectWeb3Connector.cleanupStaleData();
   }
+
   static async authenticate(options) {
     const isLoggedIn = await ParseUser.currentAsync();
     if (isLoggedIn) {
       await ParseUser.logOut();
     }
 
-    this.cleanup();
+    await this.cleanup();
 
     if (MoralisWeb3.isDotAuth(options)) {
       return MoralisDot.authenticate(options);
@@ -290,6 +329,10 @@ class MoralisWeb3 {
     await this.enableWeb3(options);
     const miniWeb3 = this.getMiniWeb3();
     const { account } = miniWeb3;
+
+    if (!account) {
+      throw new Error('Cannot authenticate, no account returned from provider');
+    }
 
     const message = options?.signingMessage || MoralisWeb3.getSigningData();
     const data = await createSigningData(message);
@@ -308,6 +351,7 @@ class MoralisWeb3 {
     await user.save(null, options);
     return user;
   }
+
   static async link(account, options) {
     const web3 = await this.enableWeb3(options);
     const miniWeb3 = this.getMiniWeb3();
@@ -387,12 +431,16 @@ class MoralisWeb3 {
           if (
             triggersArray[i]?.options?.newTab === true ||
             !triggersArray[i]?.options?.hasOwnProperty('newTab')
-          )
+          ) {
+            // eslint-disable-next-line no-undef
             window.open(triggersArray[i]?.data);
+          }
 
           // Open url in the same tab
-          if (triggersArray[i]?.options?.newTab === false)
+          if (triggersArray[i]?.options?.newTab === false) {
+            // eslint-disable-next-line no-undef
             window.open(triggersArray[i]?.data, '_self');
+          }
 
           break;
 
@@ -865,10 +913,12 @@ class MoralisWeb3 {
   };
 }
 
-// TODO: Re-check these
-MoralisWeb3.onConnect = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.CONNECT);
-MoralisWeb3.onDisconnect = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.DISCONNECT);
-MoralisWeb3.onChainChanged = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.CHAIN_CHANGED);
-MoralisWeb3.onAccountsChanged = MoralisWeb3.on.bind(MoralisWeb3, ConnectorEvent.ACCOUNT_CHANGED);
+// TODO: Change these to Web3Events instead of Provider events??
+MoralisWeb3.onConnect = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.CONNECT);
+MoralisWeb3.onDisconnect = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.DISCONNECT);
+MoralisWeb3.onWeb3Enabled = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.WEB3_ENABLED);
+MoralisWeb3.onWeb3Deactivated = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.WEB3_DEACTIVATED);
+MoralisWeb3.onChainChanged = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.CHAIN_CHANGED);
+MoralisWeb3.onAccountChanged = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.ACCOUNT_CHANGED);
 
 export default MoralisWeb3;

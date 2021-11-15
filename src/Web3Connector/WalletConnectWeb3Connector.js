@@ -1,8 +1,7 @@
 /* global window */
-import CoreManager from '../CoreManager';
 import verifyChainId from '../utils/verifyChainId';
 import AbstractWeb3Connector from './AbstractWeb3Connector';
-import { ConnectorEvent } from './events';
+import { ConnectorEvents } from './events';
 import { getMoralisRpcs } from './MoralisRpcs';
 
 export const WalletConnectEvent = Object.freeze({
@@ -14,18 +13,28 @@ export const WalletConnectEvent = Object.freeze({
 /**
  * Connector to connect an WalletConenct provider to Moralis
  * Note: this assumes using WalletConnect v1
- * TODO: support WalletConnect v2
+ * // TODO: support WalletConnect v2
  */
 class WalletConnectWeb3Connector extends AbstractWeb3Connector {
   type = 'WalletConnect';
   network = 'evm';
 
   async activate({ chainId: providedChainId, mobileLinks } = {}) {
+    // Cleanup old data if present to avoid using previous sessions
+    WalletConnectWeb3Connector.cleanupStaleData();
+
     if (!this.provider) {
       let WalletConnectProvider;
+      const config = {
+        rpc: getMoralisRpcs('WalletConnect'),
+        chainId: providedChainId,
+        qrcodeModalOptions: {
+          mobileLinks,
+        },
+      };
 
       try {
-        WalletConnectProvider = require('@walletconnect/web3-provider');
+        WalletConnectProvider = require('@walletconnect/web3-provider')?.default;
       } catch (error) {
         // Do nothing. User might not need walletconnect
       }
@@ -36,32 +45,16 @@ class WalletConnectWeb3Connector extends AbstractWeb3Connector {
         );
       }
 
-      if (typeof WalletConnectProvider.default === 'function') {
-        this.provider = new WalletConnectProvider.default({
-          rpc: getMoralisRpcs('WalletConnect'),
-          chainId: providedChainId,
-          qrcodeModalOptions: {
-            mobileLinks,
-          },
-        });
+      if (typeof WalletConnectProvider === 'function') {
+        this.provider = new WalletConnectProvider(config);
       } else {
-        this.provider = new window.WalletConnectProvider.default({
-          rpc: getMoralisRpcs('WalletConnect'),
-          chainId: providedChainId,
-          qrcodeModalOptions: {
-            mobileLinks,
-          },
-        });
+        this.provider = new window.WalletConnectProvider(config);
       }
     }
 
     if (!this.provider) {
       throw new Error('Could not connect with WalletConnect, error in connecting to provider');
     }
-
-    this.provider.on(WalletConnectEvent.CHAIN_CHANGED, this.handleChainChanged);
-    this.provider.on(WalletConnectEvent.ACCOUNTS_CHANGED, this.handleAccountsChanged);
-    // this.provider.on(WalletConnectEvent.DISCONNECT, this.handleDisconnect);
 
     const accounts = await this.provider.enable();
     const account = accounts[0].toLowerCase();
@@ -71,19 +64,9 @@ class WalletConnectWeb3Connector extends AbstractWeb3Connector {
     this.account = account;
     this.chainId = verifiedChainId;
 
+    this.subscribeToEvents(this.provider);
+
     return { provider: this.provider, account, chainId: verifiedChainId };
-  }
-
-  handleAccountsChanged(accounts) {
-    const account = accounts ? accounts[0].toLowerCase() : null;
-    this.account = account;
-    this.emit(ConnectorEvent.ACCOUNT_CHANGED, account);
-  }
-
-  handleChainChanged(chainId) {
-    const newChainId = verifyChainId(chainId);
-    this.chainId = newChainId;
-    this.emit(ConnectorEvent.CHAIN_CHANGED, newChainId);
   }
 
   static cleanupStaleData() {
@@ -97,26 +80,14 @@ class WalletConnectWeb3Connector extends AbstractWeb3Connector {
   }
 
   async deactivate() {
-    if (this.provider) {
-      this.provider.close();
-      this.provider.removeListener(WalletConnectEvent.CHAIN_CHANGED, this.handleChainChanged);
-      this.provider.removeListener(WalletConnectEvent.ACCOUNTS_CHANGED, this.handleAccountsChanged);
-    }
+    this.unsubscribeToEvents(this.provider);
 
     WalletConnectWeb3Connector.cleanupStaleData();
-  }
 
-  async getProvider() {
-    return this.provider;
-  }
+    this.account = null;
+    this.chainId = null;
 
-  async getChainId() {
-    return this.provider.request({ method: 'eth_chainId' });
-  }
-
-  async getAccount() {
-    const accounts = await this.provider.request({ method: 'eth_accounts' });
-    return accounts[0];
+    await this.provider.disconnect();
   }
 }
 

@@ -1,4 +1,6 @@
 import CoreManager from '../CoreManager';
+import { fromHexToDecimal } from '../utils/convert';
+import verifyChainId from '../utils/verifyChainId';
 import AbstractWeb3Connector from './AbstractWeb3Connector';
 import { getMoralisRpcs } from './MoralisRpcs';
 
@@ -54,11 +56,10 @@ class MiniRpcProvider {
  * Note: this has no knowledge of any user accounts
  */
 class NetworkWeb3Connector extends AbstractWeb3Connector {
-  get type() {
-    return 'Network';
-  }
+  type = 'network';
+  network = 'evm';
 
-  constructor({ urls, defaultChainId, speedyNodeKey }) {
+  constructor({ urls, defaultChainId, speedyNodeKey } = {}) {
     super();
 
     if (!urls && speedyNodeKey) {
@@ -70,8 +71,14 @@ class NetworkWeb3Connector extends AbstractWeb3Connector {
         'Cannot connect to rpc: No urls or speedyNodeKey provided for NetworkWeb3Connector.'
       );
     }
+    if (process.env.PARSE_BUILD !== 'node' && speedyNodeKey) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        'Using speedyNodeKey on the browser enviroment is not recommended, as it is publicly visible.'
+      );
+    }
 
-    this.chainId = defaultChainId ?? Number(Object.keys(urls)[0]);
+    this.chainId = verifyChainId(defaultChainId ?? Number(Object.keys(urls)[0]));
     this.providers = Object.keys(urls).reduce((accumulator, chainId) => {
       accumulator[Number(chainId)] = new MiniRpcProvider(Number(chainId), urls[Number(chainId)]);
       return accumulator;
@@ -80,26 +87,16 @@ class NetworkWeb3Connector extends AbstractWeb3Connector {
 
   async activate({ chainId: providedChainId } = {}) {
     if (providedChainId) {
-      this.chainId = providedChainId;
+      this.chainId = verifyChainId(providedChainId);
     }
 
-    const provider = this.providers[this.chainId];
+    const provider = this.providers[fromHexToDecimal(this.chainId)];
+
+    if (!provider) {
+      throw new Error(`No rpc url provided for chainId ${this.chainId}`);
+    }
 
     return { provider, chainId: this.chainId, account: null };
-  }
-
-  deactivate() {}
-
-  async getProvider() {
-    return this.providers[this.chainId];
-  }
-
-  async getChainId() {
-    return this.chainId;
-  }
-
-  async getAccount() {
-    return null;
   }
 }
 
