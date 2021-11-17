@@ -1,22 +1,8 @@
 /* global window */
 import Web3 from 'web3';
+import { getMoralisRpcs } from './Web3Connector/MoralisRpcs';
 
 const ERROR_CHAINID_MISSING = 'Invalid chainId: Chain not currently supported by Moralis';
-
-const MORALIS_RPCS = speedyNodeKey => {
-  return {
-    1: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/eth/mainnet`,
-    3: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/eth/ropsten`,
-    4: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/eth/rinkeby`,
-    5: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/eth/goerli`,
-    42: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/eth/kovan`,
-    137: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/polygon/mainnet`,
-    80001: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/polygon/mumbai`,
-    56: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/bsc/mainnet`,
-    97: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/bsc/testnet`,
-    43114: `https://speedy-nodes-nyc.moralis.io/${speedyNodeKey}/avalanche/mainnet`,
-  };
-};
 
 class MoralisCustomProvider {
   get type() {
@@ -48,7 +34,7 @@ class MoralisCustomProvider {
   }
 
   getUrl(chainId, speedyNodeKey) {
-    const url = MORALIS_RPCS(speedyNodeKey)[chainId];
+    const url = getMoralisRpcs(speedyNodeKey)[chainId];
     if (!url) {
       throw new Error(ERROR_CHAINID_MISSING);
     }
