@@ -24,7 +24,6 @@ class NoEthereumProviderError extends Error {
  */
 class InjectedWeb3Connector extends AbstractWeb3Connector {
   type = 'injected';
-  network = 'evm';
 
   verifyEthereumBrowser() {
     if (!window?.ethereum) {
@@ -67,14 +66,7 @@ class InjectedWeb3Connector extends AbstractWeb3Connector {
     });
   }
 
-  static async addNetwork(
-    chainId,
-    chainName,
-    currencyName,
-    currencySymbol,
-    rpcUrl,
-    blockExplorerUrl
-  ) {
+  async addNetwork(chainId, chainName, currencyName, currencySymbol, rpcUrl, blockExplorerUrl) {
     this.verifyEthereumBrowser();
 
     const newchainId = verifyChainId(chainId);
@@ -90,7 +82,7 @@ class InjectedWeb3Connector extends AbstractWeb3Connector {
             decimals: 18,
           },
           rpcUrls: [rpcUrl],
-          blockExplorerUrls: [blockExplorerUrl],
+          blockExplorerUrls: blockExplorerUrl ? [blockExplorerUrl] : null,
         },
       ],
     });

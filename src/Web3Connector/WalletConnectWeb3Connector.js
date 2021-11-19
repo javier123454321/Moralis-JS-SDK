@@ -17,7 +17,6 @@ export const WalletConnectEvent = Object.freeze({
  */
 class WalletConnectWeb3Connector extends AbstractWeb3Connector {
   type = 'WalletConnect';
-  network = 'evm';
 
   async activate({ chainId: providedChainId, mobileLinks } = {}) {
     // Cleanup old data if present to avoid using previous sessions

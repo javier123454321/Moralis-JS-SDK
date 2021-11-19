@@ -57,7 +57,6 @@ class MiniRpcProvider {
  */
 class NetworkWeb3Connector extends AbstractWeb3Connector {
   type = 'network';
-  network = 'evm';
 
   constructor({ urls, defaultChainId, speedyNodeKey } = {}) {
     super();

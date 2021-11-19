@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import EventEmitter from 'events';
 import verifyChainId from '../utils/verifyChainId';
-import { ConnectorEvents, ProviderEvents } from './events';
+import { ConnectorEvents, EthereumEvents } from './events';
 
 /**
  * Abstract connector to connect EIP-1193 providers to Moralis
@@ -18,7 +18,7 @@ import { ConnectorEvents, ProviderEvents } from './events';
  */
 class AbstractWeb3Connector extends EventEmitter {
   type = 'abstract';
-  network = null;
+  network = 'evm';
   account = null;
   chainId = null;
 
@@ -32,19 +32,19 @@ class AbstractWeb3Connector extends EventEmitter {
 
   subscribeToEvents(provider) {
     if (provider && provider.on) {
-      provider.on(ProviderEvents.CHAIN_CHANGED, this.handleChainChanged);
-      provider.on(ProviderEvents.ACCOUNTS_CHANGED, this.handleAccountsChanged);
-      provider.on(ProviderEvents.CONNECT, this.handleConnect);
-      provider.on(ProviderEvents.DISCONNECT, this.handleDisconnect);
+      provider.on(EthereumEvents.CHAIN_CHANGED, this.handleChainChanged);
+      provider.on(EthereumEvents.ACCOUNTS_CHANGED, this.handleAccountsChanged);
+      provider.on(EthereumEvents.CONNECT, this.handleConnect);
+      provider.on(EthereumEvents.DISCONNECT, this.handleDisconnect);
     }
   }
 
   unsubscribeToEvents(provider) {
     if (provider && provider.removeListener) {
-      provider.removeListener(ProviderEvents.CHAIN_CHANGED, this.handleChainChanged);
-      provider.removeListener(ProviderEvents.ACCOUNTS_CHANGED, this.handleAccountsChanged);
-      provider.removeListener(ProviderEvents.CONNECT, this.handleConnect);
-      provider.removeListener(ProviderEvents.DISCONNECT, this.handleDisconnect);
+      provider.removeListener(EthereumEvents.CHAIN_CHANGED, this.handleChainChanged);
+      provider.removeListener(EthereumEvents.ACCOUNTS_CHANGED, this.handleAccountsChanged);
+      provider.removeListener(EthereumEvents.CONNECT, this.handleConnect);
+      provider.removeListener(EthereumEvents.DISCONNECT, this.handleDisconnect);
     }
   }
 
