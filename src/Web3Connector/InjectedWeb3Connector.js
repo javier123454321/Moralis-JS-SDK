@@ -4,13 +4,6 @@ import AbstractWeb3Connector from './AbstractWeb3Connector';
 import EventEmitter from 'events';
 import verifyChainId from '../utils/verifyChainId';
 
-export const InjectedEvents = Object.freeze({
-  ACCOUNTS_CHANGED: 'accountsChanged',
-  CHAIN_CHANGED: 'chainChanged',
-  CONNECT: 'connect',
-  DISCONNECT: 'disconnect',
-});
-
 class NoEthereumProviderError extends Error {
   constructor() {
     super();

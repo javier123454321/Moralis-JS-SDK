@@ -9,10 +9,9 @@ import { ConnectorEvents, EthereumEvents } from './events';
  * It must implement at least:
  * - activate()
  *
- * It should implement:
- * - Emit ConnectorEvent.CHAIN_CHANGED when the chain has changed
- * - Emit ConnectorEvent.ACCOUNT_CHANGED when the account has changed
- * - deactivate(): to cleanup event listeners and stale references
+ * It should implement at least:
+ * - Emit ConnectorEvent.CHAIN_CHANGED when the chain has changed (if possible)
+ * - Emit ConnectorEvent.ACCOUNT_CHANGED when the account has changed (if possible)
  * - type: a name to identify
  * - network: the network type that is used (eg. evm)
  */
