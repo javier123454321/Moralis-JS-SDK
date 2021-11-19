@@ -8,7 +8,8 @@ jest.dontMock('../Parse');
 jest.dontMock('../RESTController');
 jest.dontMock('../Storage');
 jest.dontMock('crypto-js/aes');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 jest.setMock('axios', () => {});
 
 const ParseError = require('../ParseError').default;

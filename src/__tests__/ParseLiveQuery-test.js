@@ -16,7 +16,8 @@ jest.dontMock('../ParseObject');
 jest.dontMock('../ParseQuery');
 jest.dontMock('../EventEmitter');
 jest.dontMock('../promiseUtils');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 // Forces the loading
 const LiveQuery = require('../ParseLiveQuery').default;

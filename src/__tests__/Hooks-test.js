@@ -12,7 +12,8 @@ jest.dontMock('../CoreManager');
 jest.dontMock('../decode');
 jest.dontMock('../encode');
 jest.dontMock('../ParseError');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 const Hooks = require('../ParseHooks');
 const CoreManager = require('../CoreManager');

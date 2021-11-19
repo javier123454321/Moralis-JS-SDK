@@ -16,7 +16,8 @@ jest.dontMock('../ParseOp');
 jest.dontMock('../promiseUtils');
 jest.dontMock('../SingleInstanceStateController');
 jest.dontMock('../TaskQueue');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 const mockObject = function () {};
 mockObject.registerSubclass = function () {};

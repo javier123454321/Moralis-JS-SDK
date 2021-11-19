@@ -30,7 +30,8 @@ jest.dontMock('../unique');
 jest.dontMock('../UniqueInstanceStateController');
 jest.dontMock('crypto-js/aes');
 jest.dontMock('crypto-js/enc-utf8');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 jest.mock('uuid/v4', () => {
   let value = 0;

@@ -34,7 +34,8 @@ jest.dontMock('../ParseACL');
 jest.dontMock('../ParseQuery');
 jest.dontMock('../LiveQuerySubscription');
 jest.dontMock('../LocalDatastore');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 jest.useFakeTimers();
 

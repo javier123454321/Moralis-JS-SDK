@@ -12,7 +12,8 @@ jest.dontMock('../encode');
 jest.dontMock('../decode');
 jest.dontMock('../ParseOp');
 jest.dontMock('../unique');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 let localCount = 0;
 const mockObject = function (className, id) {

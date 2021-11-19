@@ -16,7 +16,8 @@ jest.dontMock('../ParseOp');
 jest.dontMock('../ParseRole');
 jest.dontMock('../SingleInstanceStateController');
 jest.dontMock('../UniqueInstanceStateController');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 const ParseACL = require('../ParseACL').default;
 const ParseError = require('../ParseError').default;

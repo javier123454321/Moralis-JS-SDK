@@ -33,7 +33,8 @@ jest.dontMock('../UniqueInstanceStateController');
 jest.dontMock('../unsavedChildren');
 jest.dontMock('../ParseACL');
 jest.dontMock('../LocalDatastore');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 jest.mock('uuid/v4', () => {
   let value = 0;

@@ -19,7 +19,8 @@ jest.dontMock('../RESTController');
 jest.dontMock('../Storage');
 jest.dontMock('../StorageController.default');
 jest.dontMock('./test_helpers/mockAsyncStorage');
-jest.setMock('web3', () => {});
+jest.setMock('web3-utils', () => {});
+jest.setMock('web3-eth-contract', () => {});
 
 const mockAsyncStorage = require('./test_helpers/mockAsyncStorage');
 const CoreManager = require('../CoreManager');
