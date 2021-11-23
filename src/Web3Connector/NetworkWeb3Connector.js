@@ -23,7 +23,7 @@ class MiniRpcProvider {
 
     const RESTController = CoreManager.getRESTController();
 
-    const response = RESTController.ajax(
+    const response = await RESTController.ajax(
       'POST',
       this.url,
       JSON.stringify({
