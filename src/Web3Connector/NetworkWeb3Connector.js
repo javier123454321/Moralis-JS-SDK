@@ -58,22 +58,22 @@ class MiniRpcProvider {
 class NetworkWeb3Connector extends AbstractWeb3Connector {
   type = 'network';
 
-  constructor({ urls, defaultChainId, speedyNodeKey } = {}) {
+  constructor({ urls, defaultChainId, speedyNodeApiKey } = {}) {
     super();
 
-    if (!urls && speedyNodeKey) {
-      urls = getMoralisRpcs(speedyNodeKey);
+    if (!urls && speedyNodeApiKey) {
+      urls = getMoralisRpcs(speedyNodeApiKey);
     }
 
-    if (!urls && !speedyNodeKey) {
+    if (!urls && !speedyNodeApiKey) {
       throw new Error(
-        'Cannot connect to rpc: No urls or speedyNodeKey provided for NetworkWeb3Connector.'
+        'Cannot connect to rpc: No urls or speedyNodeApiKey provided for NetworkWeb3Connector.'
       );
     }
-    if (process.env.PARSE_BUILD !== 'node' && speedyNodeKey) {
+    if (process.env.PARSE_BUILD !== 'node' && speedyNodeApiKey) {
       // eslint-disable-next-line no-console
       console.warn(
-        'Using speedyNodeKey on the browser enviroment is not recommended, as it is publicly visible.'
+        'Using speedyNodeApiKey on the browser enviroment is not recommended, as it is publicly visible.'
       );
     }
 
