@@ -165,7 +165,7 @@ gulp.task('compile-web3api', function () {
 
 gulp.task('browserify', function (cb) {
   const stream = browserify({
-    builtins: ['_process', 'events'],
+    builtins: ['_process', 'events', 'timers'],
     entries: 'lib/browser/Parse.js',
     standalone: 'Moralis',
   })
@@ -185,7 +185,7 @@ gulp.task('browserify', function (cb) {
 
 gulp.task('browserify-weapp', function (cb) {
   const stream = browserify({
-    builtins: ['_process', 'events'],
+    builtins: ['_process', 'events', 'timers'],
     entries: 'lib/weapp/Parse.js',
     standalone: 'Moralis',
   })
@@ -205,7 +205,7 @@ gulp.task('browserify-weapp', function (cb) {
 
 gulp.task('browserify-web3api', function (cb) {
   const stream = browserify({
-    builtins: ['_process', 'events'],
+    builtins: ['_process', 'events', 'timers'],
     entries: 'lib/web3api/index.js',
     standalone: 'Web3Api',
   })

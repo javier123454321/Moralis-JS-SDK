@@ -1,17 +1,3 @@
-// Events emitted by Moralis
-export const Web3Events = Object.freeze({
-  ACCOUNT_CHANGED: 'accountChanged',
-  CHAIN_CHANGED: 'chainChanged',
-  // Provider is connected
-  CONNECT: 'connect',
-  // Provider is disconnected
-  DISCONNECT: 'disconnect',
-  // web3 is enabled
-  WEB3_ENABLED: 'web3Enabled',
-  // web3 is deactivated
-  WEB3_DEACTIVATED: 'web3Deactivated',
-});
-
 // Events being emitted by a eip-1193 provider
 // See https://eips.ethereum.org/EIPS/eip-1193#events
 export const EthereumEvents = Object.freeze({

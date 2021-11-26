@@ -500,8 +500,8 @@ export namespace Moralis {
    */
   class Units {
     static ETH: (value: number | string) => string;
-    static Token: (value: number | string, decimals: number) => string;
-    static FromWei: (value: number | string, decimals: number) => number;
+    static Token: (value: number | string, decimals?: number) => string;
+    static FromWei: (value: number | string, decimals?: number) => number;
   }
 
   /**

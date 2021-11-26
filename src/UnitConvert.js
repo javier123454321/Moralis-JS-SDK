@@ -1,16 +1,16 @@
-import Web3Utils from 'web3-utils';
+import { ethers } from 'ethers';
 
 class UnitConverter {
   static ETH(value) {
-    return Web3Utils.toWei(`${value}`, 'ether');
+    return ethers.utils.parseEther(`${value}`).toString();
   }
 
-  static Token(value, decimals) {
-    return Web3Utils.toBN(`0x${(+value * 10 ** decimals).toString(16)}`);
+  static Token(value, decimals = 18) {
+    return ethers.utils.parseUnits(`${value}`, +decimals).toString();
   }
 
-  static FromWei(value, decimals) {
-    return +value / Math.pow(10, decimals ?? 18);
+  static FromWei(value, decimals = 18) {
+    return ethers.utils.formatUnits(value, decimals);
   }
 }
 

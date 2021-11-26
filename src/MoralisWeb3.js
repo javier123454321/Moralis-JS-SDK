@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+import EventEmitter from 'events';
 import ParseObject from './ParseObject';
 import ParseQuery from './ParseQuery';
 import ParseUser from './ParseUser';
@@ -7,16 +9,11 @@ import MoralisDot from './MoralisDot';
 import TransferUtils from './TransferUtils';
 import { run } from './Cloud';
 import createSigningData from './createSigningData';
-import web3Utils from 'web3-utils';
-import Contract from 'web3-eth-contract';
-
 import WalletConnectWeb3Connector from './Web3Connector/WalletConnectWeb3Connector';
 import InjectedWeb3Connector from './Web3Connector/InjectedWeb3Connector';
 import NetworkWeb3Connector from './Web3Connector/NetworkWeb3Connector';
 import ParseError from './ParseError';
-import { Web3Events } from './Web3Connector/events';
-import MiniWeb3 from './MiniWeb3';
-import EventEmitter from 'events';
+import InternalWeb3Provider, { InternalWeb3Events } from './InternalWeb3Provider';
 
 const WARNING = 'Non ethereum enabled browser';
 const ERROR_WEB3_MISSING =
@@ -30,9 +27,10 @@ const MoralisEmitter = new EventEmitter();
 
 class MoralisWeb3 {
   static speedyNodeApiKey;
+  // Web3 instance created by user provided library
   static web3 = null;
-  static miniWeb3 = null;
-  static customEnableWeb3;
+  // Internal web3 provider, containing the Ethers.js Web3 library for internal usage for handling transactions, contracts etc.
+  static internalWeb3Provider = null;
   static Plugins = {};
 
   static addListener(eventName, listener) {
@@ -62,20 +60,20 @@ class MoralisWeb3 {
   }
 
   static handleWeb3AccountChanged(account) {
-    MoralisEmitter.emit(Web3Events.ACCOUNT_CHANGED, account);
+    MoralisEmitter.emit(InternalWeb3Events.ACCOUNT_CHANGED, account);
   }
 
   static handleWeb3ChainChanged(chainId) {
-    MoralisEmitter.emit(Web3Events.CHAIN_CHANGED, chainId);
+    MoralisEmitter.emit(InternalWeb3Events.CHAIN_CHANGED, chainId);
   }
 
   static handleWeb3Connect(connectInfo) {
-    MoralisEmitter.emit(Web3Events.CONNECT, connectInfo);
+    MoralisEmitter.emit(InternalWeb3Events.CONNECT, connectInfo);
   }
 
   static handleWeb3Disconnect(error) {
     this.cleanup();
-    MoralisEmitter.emit(Web3Events.DISCONNECT, error);
+    MoralisEmitter.emit(InternalWeb3Events.DISCONNECT, error);
   }
 
   static async enableWeb3(options) {
@@ -84,26 +82,38 @@ class MoralisWeb3 {
       options.provider = 'network';
     }
 
-    if (this.miniWeb3) {
+    if (this.internalWeb3Provider) {
       await this.cleanup();
     }
 
     const Connector = options.connector ?? MoralisWeb3.getWeb3Connector(options.provider);
     const connector = new Connector(options);
 
-    this.miniWeb3 = new MiniWeb3(connector);
+    this.internalWeb3Provider = new InternalWeb3Provider(connector);
 
-    this.miniWeb3.on(Web3Events.ACCOUNT_CHANGED, args => this.handleWeb3AccountChanged(args));
-    this.miniWeb3.on(Web3Events.CHAIN_CHANGED, args => this.handleWeb3ChainChanged(args));
-    this.miniWeb3.on(Web3Events.CONNECT, args => this.handleWeb3Connect(args));
-    this.miniWeb3.on(Web3Events.DISCONNECT, args => this.handleWeb3Disconnect(args));
+    this.internalWeb3Provider.on(InternalWeb3Events.ACCOUNT_CHANGED, args =>
+      this.handleWeb3AccountChanged(args)
+    );
+    this.internalWeb3Provider.on(InternalWeb3Events.CHAIN_CHANGED, args =>
+      this.handleWeb3ChainChanged(args)
+    );
+    this.internalWeb3Provider.on(InternalWeb3Events.CONNECT, args => this.handleWeb3Connect(args));
+    this.internalWeb3Provider.on(InternalWeb3Events.DISCONNECT, args =>
+      this.handleWeb3Disconnect(args)
+    );
 
     let provider;
     let chainId;
     let account;
+    let internalWeb3;
 
     try {
-      ({ provider, chainId, account } = await this.miniWeb3.activate(options));
+      ({
+        provider,
+        chainId,
+        account,
+        web3: internalWeb3,
+      } = await this.internalWeb3Provider.activate(options));
 
       if (!provider) {
         throw new Error('Failed to activate, no provider returned');
@@ -120,7 +130,7 @@ class MoralisWeb3 {
     }
 
     this.web3 = web3;
-    MoralisEmitter.emit(Web3Events.WEB3_ENABLED, {
+    MoralisEmitter.emit(InternalWeb3Events.WEB3_ENABLED, {
       chainId,
       account,
       connector,
@@ -176,23 +186,32 @@ class MoralisWeb3 {
   }
 
   static async cleanup() {
-    if (this.miniWeb3) {
-      this.miniWeb3.removeListener(Web3Events.ACCOUNT_CHANGED, this.handleWeb3AccountChanged);
-      this.miniWeb3.removeListener(Web3Events.CHAIN_CHANGED, this.handleWeb3ChainChanged);
-      this.miniWeb3.removeListener(Web3Events.CONNECT, this.handleWeb3Connect);
-      this.miniWeb3.removeListener(Web3Events.DISCONNECT, this.handleWeb3Disconnect);
+    if (this.internalWeb3Provider) {
+      this.internalWeb3Provider.removeListener(
+        InternalWeb3Events.ACCOUNT_CHANGED,
+        this.handleWeb3AccountChanged
+      );
+      this.internalWeb3Provider.removeListener(
+        InternalWeb3Events.CHAIN_CHANGED,
+        this.handleWeb3ChainChanged
+      );
+      this.internalWeb3Provider.removeListener(InternalWeb3Events.CONNECT, this.handleWeb3Connect);
+      this.internalWeb3Provider.removeListener(
+        InternalWeb3Events.DISCONNECT,
+        this.handleWeb3Disconnect
+      );
 
-      await this.miniWeb3.deactivate();
+      await this.internalWeb3Provider.deactivate();
     }
 
     if (this.web3) {
-      MoralisEmitter.emit(Web3Events.WEB3_DEACTIVATED, {
-        connector: this.miniWeb3.connector,
-        provider: this.miniWeb3.provider,
+      MoralisEmitter.emit(InternalWeb3Events.WEB3_DEACTIVATED, {
+        connector: this.internalWeb3Provider.connector,
+        provider: this.internalWeb3Provider.provider,
       });
     }
 
-    this.miniWeb3 = null;
+    this.internalWeb3Provider = null;
     this.web3 = null;
 
     // Prevent a bug when there is stale data active
@@ -216,8 +235,7 @@ class MoralisWeb3 {
     }
 
     await this.enableWeb3(options);
-    const miniWeb3 = this.getMiniWeb3();
-    const { account } = miniWeb3;
+    const { account, web3: internalWeb3, signer } = this.getInternalWeb3Provider();
 
     if (!account) {
       throw new Error('Cannot authenticate, no account returned from provider');
@@ -228,7 +246,7 @@ class MoralisWeb3 {
     const ethAddress = account.toLowerCase();
     if (!ethAddress) throw new Error('Address not found');
 
-    const signature = await miniWeb3.personalSign({ message: data, account });
+    const signature = await signer.signMessage(data);
     if (!signature) throw new Error('Data not signed');
     const authData = { id: ethAddress, signature, data };
     const user = await ParseUser.logInWith('moralisEth', { authData });
@@ -241,7 +259,7 @@ class MoralisWeb3 {
   }
 
   static async link(account, options) {
-    const miniWeb3 = this.getMiniWeb3();
+    const { signer } = this.getInternalWeb3Provider();
     const data = options?.signingMessage || MoralisWeb3.getSigningData();
     const user = await ParseUser.currentAsync();
     const ethAddress = account.toLowerCase();
@@ -250,7 +268,7 @@ class MoralisWeb3 {
     const query = new ParseQuery(EthAddress);
     const ethAddressRecord = await query.get(ethAddress).catch(() => null);
     if (!ethAddressRecord) {
-      const signature = await miniWeb3.personalSign({ message: data, account });
+      const signature = await signer.signMessage(data);
 
       if (!signature) throw new Error('Data not signed');
       const authData = { id: ethAddress, signature, data };
@@ -336,12 +354,16 @@ class MoralisWeb3 {
         // Handles `web3Transaction` trigger
         case 'web3Transaction':
           // Trigger a web3 transaction (await)
-          if (triggersArray[i]?.shouldAwait === true)
-            response = await this.getMiniWeb3().sendTransaction(triggersArray[i]?.data);
+          response = await this.getInternalWeb3Provider().signer.sendTransaction({
+            from: triggersArray[i]?.data?.from,
+            to: triggersArray[i]?.data?.to,
+            value: ethers.BigNumber.from(triggersArray[i]?.data?.value ?? 0),
+            data: triggersArray[i]?.data?.data,
+          });
 
-          // Trigger a web3 transaction (does NOT await)
-          if (triggersArray[i]?.shouldAwait === false)
-            response = this.getMiniWeb3().sendTransaction(triggersArray[i]?.data);
+          if (triggersArray[i]?.shouldAwait === true) {
+            response = await response.wait();
+          }
 
           // Save the response returned by the web3 trasanction
           if (triggersArray[i]?.saveResponse === true) this.memoryCard.save(response);
@@ -358,22 +380,17 @@ class MoralisWeb3 {
         case 'web3Sign':
           if (!triggersArray[i].message)
             throw new Error('web3Sign trigger does not have a message to sign');
-          if (!triggersArray[i].signer || !web3Utils.isAddress(triggersArray[i].signer))
+          if (!triggersArray[i].signer || triggersArray[i].signer)
             throw new Error('web3Sign trigger signer address missing or invalid');
 
-          // Sign a message using web3 (await)
-          if (triggersArray[i]?.shouldAwait === true)
-            response = await this.getMiniWeb3().personalSign({
-              account: triggersArray[i].signer,
-              message: triggersArray[i].message,
-            });
+          // eslint-disable-next-line no-case-declarations
+          let response = await this.getInternalWeb3Provider().signer.signMessage(
+            triggersArray[i].message
+          );
 
-          // Sign a message using web3 (does NOT await)
-          if (triggersArray[i]?.shouldAwait === false)
-            response = this.getMiniWeb3().personalSign({
-              account: triggersArray[i].signer,
-              message: triggersArray[i].message,
-            });
+          if (triggersArray[i]?.shouldAwait) {
+            response = await response.wait();
+          }
 
           // Save response
           if (triggersArray[i]?.saveResponse === true) this.memoryCard.save(response);
@@ -455,10 +472,21 @@ class MoralisWeb3 {
 
           if (triggersArray[i]?.shouldAwait === true) {
             try {
-              const result = await this.getMiniWeb3().signTypedDataV4({
-                params: triggersArray[i].parameters,
-                from: triggersArray[i].from,
-              });
+              const { domain, types, message } = JSON.parse(triggersArray[i].parameters[1]);
+              if (types.EIP712Domain) {
+                // Ethers.js will compute this automatically
+                delete types.EIP712Domain;
+              }
+
+              const signature = await this.getInternalWeb3Provider().signer._signTypedData(
+                domain,
+                types,
+                message
+              );
+
+              const result = {
+                result: signature,
+              };
 
               if (triggersArray[i]?.saveResponse === true) this.memoryCard.save(result);
               response = result;
@@ -468,13 +496,20 @@ class MoralisWeb3 {
           }
 
           if (triggersArray[i]?.shouldAwait === false) {
-            this.getMiniWeb3()
-              .signTypedDataV4({
-                params: triggersArray[i].parameters,
-                from: triggersArray[i].from,
-              })
+            const { domain, types, message } = JSON.parse(triggersArray[i].parameters[1]);
+
+            if (types.EIP712Domain) {
+              // Ethers.js will compute this automatically
+              delete types.EIP712Domain;
+            }
+
+            this.getInternalWeb3Provider()
+              .signer._signTypedData(domain, types, message)
               // eslint-disable-next-line no-loop-func
-              .then(result => {
+              .then(signature => {
+                const result = {
+                  result: signature,
+                };
                 if (triggersArray[i]?.saveResponse === true) this.memoryCard.save(result);
                 response = result;
               })
@@ -558,8 +593,7 @@ class MoralisWeb3 {
     TransferUtils.isSupportedType(type);
     TransferUtils.validateInput(type, options);
 
-    const miniWeb3 = this.getMiniWeb3();
-    const sender = miniWeb3.account;
+    const { web3: internalWeb3, account: sender, signer } = this.getInternalWeb3Provider();
 
     if (!sender) throw new Error('Sender address not found');
 
@@ -569,60 +603,48 @@ class MoralisWeb3 {
     if (tokenId) TransferUtils.isUint256(tokenId);
 
     if (type !== 'native') {
-      customToken = new Contract(TransferUtils.abi[type], contractAddress);
-      customToken.setProvider(miniWeb3.provider);
+      customToken = new ethers.Contract(contractAddress, TransferUtils.abi[type], signer);
     }
     switch (type) {
       case 'native':
-        transferOperation = miniWeb3.sendTransaction({
-          from: sender,
+        transferOperation = signer.sendTransaction({
           to: receiver,
-          value: amount,
+          value: ethers.BigNumber.from(amount),
         });
         break;
       case 'erc20':
-        transferOperation = customToken.methods.transfer(receiver, amount).send({
+        transferOperation = customToken.transfer(receiver, amount, {
           from: sender,
         });
         break;
       case 'erc721':
-        transferOperation = customToken.methods
-          .safeTransferFrom(sender, receiver, `${tokenId}`)
-          .send({
-            from: sender,
-          });
+        transferOperation = customToken.safeTransferFrom(sender, receiver, `${tokenId}`, {
+          from: sender,
+        });
         break;
       case 'erc1155':
-        transferOperation = customToken.methods
-          .safeTransferFrom(sender, receiver, `${tokenId}`, amount, '0x')
-          .send({
+        transferOperation = customToken.safeTransferFrom(
+          sender,
+          receiver,
+          `${tokenId}`,
+          amount,
+          '0x',
+          {
             from: sender,
-          });
+          }
+        );
         break;
       default:
         throw new Error(`Unknown transfer type: "${type}"`);
     }
 
+    const result = await transferOperation;
+
     if (awaitReceipt) return transferOperation;
 
-    const transferEvents = new EventEmitter();
+    const confirmed = await result.wait();
 
-    transferOperation
-      .on('transactionHash', hash => {
-        transferEvents.emit('transactionHash', hash);
-      })
-      .on('receipt', receipt => {
-        transferEvents.emit('receipt', receipt);
-      })
-      .on('confirmation', (confirmationNumber, receipt) => {
-        transferEvents.emit('confirmation', (confirmationNumber, receipt));
-      })
-      .on('error', error => {
-        transferEvents.emit('error', error);
-        throw error;
-      });
-
-    return transferEvents;
+    return confirmed;
   }
 
   static async executeFunction({
@@ -632,10 +654,11 @@ class MoralisWeb3 {
     msgValue,
     awaitReceipt = true,
     params = {},
+    overrides = {},
   } = {}) {
     const contractOptions = {};
 
-    const miniWeb3 = this.getMiniWeb3();
+    const { account, web3: internalWeb3, provider, signer } = this.getInternalWeb3Provider();
 
     const functionData = abi.find(x => x.name === functionName);
 
@@ -647,7 +670,7 @@ class MoralisWeb3 {
 
     if (!isReadFunction) {
       if (!params.from) {
-        const currentAddress = miniWeb3.account;
+        const currentAddress = account;
         if (!currentAddress) throw new Error('From address is required');
         contractOptions.from = currentAddress;
       }
@@ -670,35 +693,18 @@ class MoralisWeb3 {
       return params[x.name];
     });
 
-    const contract = new Contract(abi, contractAddress, contractOptions);
-    contract.setProvider(miniWeb3.provider);
+    const contract = new ethers.Contract(contractAddress, abi, signer);
 
-    const customFunction = contract.methods[functionName];
+    const response = await contract[functionName](
+      ...Object.values(parsedInputs),
+      msgValue ? { value: ethers.BigNumber.from(`${msgValue}`) } : {}
+    );
 
-    const response = isReadFunction
-      ? customFunction(...Object.values(parsedInputs)).call()
-      : customFunction(...Object.values(parsedInputs)).send(msgValue ? { value: msgValue } : null);
+    if (awaitReceipt || isReadFunction) return response;
 
-    if (awaitReceipt) return response;
+    const confirmed = await response.wait();
 
-    const contractExecuteEvents = new EventEmitter();
-
-    response
-      .on('transactionHash', hash => {
-        contractExecuteEvents.emit('transactionHash', hash);
-      })
-      .on('receipt', receipt => {
-        contractExecuteEvents.emit('receipt', receipt);
-      })
-      .on('confirmation', (confirmationNumber, receipt) => {
-        contractExecuteEvents.emit('confirmation', (confirmationNumber, receipt));
-      })
-      .on('error', error => {
-        contractExecuteEvents.emit('error', error);
-        throw error;
-      });
-
-    return contractExecuteEvents;
+    return confirmed;
   }
 
   static getSigningData() {
@@ -706,24 +712,31 @@ class MoralisWeb3 {
   }
 
   static ensureWeb3IsInstalled() {
-    return this.miniWeb3 ? true : false;
+    return this.internalWeb3Provider && this.internalWeb3Provider.web3 ? true : false;
   }
 
   /**
-   * Gets the miniWeb3 with validation to make sure it has been instansiated with 'enableWeb3()'
+   * Gets the internalWeb3Provider with validation to make sure it has been instansiated with 'enableWeb3()'
    */
-  static getMiniWeb3() {
+  static getInternalWeb3Provider() {
     if (!this.ensureWeb3IsInstalled()) throw new Error(ERROR_WEB3_MISSING);
 
-    return this.miniWeb3;
+    return this.internalWeb3Provider;
+  }
+
+  /**
+   * Gets web3 from the internalWeb3Provider with validation to make sure it has been instansiated with 'enableWeb3()'
+   */
+  static getInternalWeb3() {
+    return this.getInternalWeb3Provider().web3;
   }
 
   static get provider() {
-    return this.miniWeb3?.provider ?? null;
+    return this.internalWeb3Provider?.provider ?? null;
   }
 
   static get connector() {
-    return this.miniWeb3?.connector ?? null;
+    return this.internalWeb3Provider?.connector ?? null;
   }
 
   static get connectorType() {
@@ -735,11 +748,11 @@ class MoralisWeb3 {
   }
 
   static get account() {
-    return this.miniWeb3?.account ?? null;
+    return this.internalWeb3Provider?.account ?? null;
   }
 
   static get chainId() {
-    return this.miniWeb3?.chainId ?? null;
+    return this.internalWeb3Provider?.chainId ?? null;
   }
 
   static getChainId() {
@@ -747,8 +760,7 @@ class MoralisWeb3 {
   }
 
   static _forwardToConnector(methodName, args) {
-    const miniWeb3 = this.getMiniWeb3();
-    const { connector } = miniWeb3;
+    const { connector } = this.getInternalWeb3Provider();
 
     const hasMethod = Boolean(connector[methodName]);
 
@@ -800,11 +812,14 @@ class MoralisWeb3 {
   };
 }
 
-MoralisWeb3.onConnect = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.CONNECT);
-MoralisWeb3.onDisconnect = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.DISCONNECT);
-MoralisWeb3.onWeb3Enabled = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.WEB3_ENABLED);
-MoralisWeb3.onWeb3Deactivated = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.WEB3_DEACTIVATED);
-MoralisWeb3.onChainChanged = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.CHAIN_CHANGED);
-MoralisWeb3.onAccountChanged = MoralisWeb3.on.bind(MoralisWeb3, Web3Events.ACCOUNT_CHANGED);
+MoralisWeb3.onConnect = MoralisWeb3.on.bind(MoralisWeb3, InternalWeb3Events.CONNECT);
+MoralisWeb3.onDisconnect = MoralisWeb3.on.bind(MoralisWeb3, InternalWeb3Events.DISCONNECT);
+MoralisWeb3.onWeb3Enabled = MoralisWeb3.on.bind(MoralisWeb3, InternalWeb3Events.WEB3_ENABLED);
+MoralisWeb3.onWeb3Deactivated = MoralisWeb3.on.bind(
+  MoralisWeb3,
+  InternalWeb3Events.WEB3_DEACTIVATED
+);
+MoralisWeb3.onChainChanged = MoralisWeb3.on.bind(MoralisWeb3, InternalWeb3Events.CHAIN_CHANGED);
+MoralisWeb3.onAccountChanged = MoralisWeb3.on.bind(MoralisWeb3, InternalWeb3Events.ACCOUNT_CHANGED);
 
 export default MoralisWeb3;

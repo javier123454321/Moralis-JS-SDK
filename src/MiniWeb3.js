@@ -1,6 +1,5 @@
-import web3Utils from 'web3-utils';
 import EventEmitter from 'events';
-import { ConnectorEvents, Web3Events } from './Web3Connector/events';
+import { ConnectorEvents } from './Web3Connector/events';
 
 /**
  * A small web3 implementation that implements basic EIP-1193 `request` calls.
@@ -39,54 +38,57 @@ class MiniWeb3 extends EventEmitter {
     return { provider, chainId, account };
   }
 
-  handleChainChanged(chainId) {
-    this.chainId = chainId;
-    this.emit(Web3Events.CHAIN_CHANGED, chainId);
-  }
+  // handleChainChanged(chainId) {
+  //   this.chainId = chainId;
+  //   this.emit(Web3Events.CHAIN_CHANGED, chainId);
+  // }
 
-  handleAccountChanged(account) {
-    this.account = account;
-    this.emit(Web3Events.ACCOUNT_CHANGED, account);
-  }
+  // handleAccountChanged(account) {
+  //   this.account = account;
+  //   this.emit(Web3Events.ACCOUNT_CHANGED, account);
+  // }
 
-  // Handle Connect events fired from connectors
-  handleConnect(connectInfo) {
-    this.emit(Web3Events.CONNECT, connectInfo);
-  }
+  // // Handle Connect events fired from connectors
+  // handleConnect(connectInfo) {
+  //   this.emit(Web3Events.CONNECT, connectInfo);
+  // }
 
-  // Handle Disconnect events fired from connectors
-  handleDisconnect(error) {
-    this.emit(Web3Events.DISCONNECT, error);
-  }
+  // // Handle Disconnect events fired from connectors
+  // handleDisconnect(error) {
+  //   this.emit(Web3Events.DISCONNECT, error);
+  // }
 
-  async deactivate() {
-    this.account = null;
-    this.chianId = null;
+  // async deactivate() {
+  //   this.account = null;
+  //   this.chianId = null;
 
-    if (this.connector) {
-      if (this.connector.removeListener) {
-        this.connector.removeListener(Web3Events.CHAIN_CHANGED, this.handleChainChanged);
-        this.connector.removeListener(Web3Events.ACCOUNT_CHANGED, this.handleAccountChanged);
-        this.connector.removeListener(Web3Events.CONNECT, this.handleConnect);
-        this.connector.removeListener(Web3Events.DISCONNECT, this.handleDisconnect);
-      }
+  //   if (this.connector) {
+  //     if (this.connector.removeListener) {
+  //       this.connector.removeListener(Web3Events.CHAIN_CHANGED, this.handleChainChanged);
+  //       this.connector.removeListener(Web3Events.ACCOUNT_CHANGED, this.handleAccountChanged);
+  //       this.connector.removeListener(Web3Events.CONNECT, this.handleConnect);
+  //       this.connector.removeListener(Web3Events.DISCONNECT, this.handleDisconnect);
+  //     }
 
-      if (this.connector.deactivate) {
-        await this.connector.deactivate();
-      }
-    }
-  }
+  //     if (this.connector.deactivate) {
+  //       await this.connector.deactivate();
+  //     }
+  //   }
+  // }
 
   async sendTransaction(data) {
-    const from = data.account ?? this.account;
+    const from = data.account ?? data.from ?? this.account;
     const params = {
       ...data,
       from,
-      value: data.value ? web3Utils.toHex(data.value) : undefined,
+      // TODO
+      // eslint-disable-next-line no-inline-comments
+      value: data.value ? /* web3Utils.toHex(data.value) */ undefined : undefined,
     };
     const method = 'eth_sendTransaction';
 
-    return this.provider.request({ method, params: [params] });
+    const result = await this.provider.request({ method, params: [params] });
+    return result;
   }
 
   personalSign({ message, account }) {
